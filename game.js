@@ -18,6 +18,7 @@ const GAME_CONSTANTS = {
 
 let targetX;
 let targetY;
+let gamePaused = true;  // Add this line
 let currentFireRate = GAME_CONSTANTS.FIRE_RATE.INITIAL;
 let lastFireRateUpdate = 0;
 let lastAutoShot = 0;
@@ -121,7 +122,7 @@ function create() {
     });
 
     this.physics.add.collider(player, enemies, (player, enemy) => {
-        this.bgMusic.stop();
+        this.bgMusic.stop();  // This line already exists
         enemies.clear(true, true);
         bullets.clear(true, true);
         player.destroy();
@@ -142,6 +143,7 @@ function create() {
             this.physics.resume();
             score = 0;
             this.scene.restart();
+            this.bgMusic.play();  // Restart BGM when game restarts
         });
     });
 
@@ -152,9 +154,45 @@ function create() {
 
     targetX = player.x;
     targetY = player.y;
+
+    // After creating scoreText, add:
+    const startText = this.add.text(this.scale.width / 2, this.scale.height / 2, 'Touch to Start', {
+        fontSize: '48px',
+        fill: '#fff',
+        backgroundColor: '#000000',
+        padding: { x: 20, y: 10 }
+    }).setOrigin(0.5);
+
+    this.input.on('pointerdown', () => {
+        if (gamePaused) {
+            gamePaused = false;
+            startText.destroy();
+            this.physics.resume();
+            this.bgMusic.resume();  // Resume BGM when game starts/resumes
+        }
+    });
+
+    this.input.on('pointerup', () => {
+        if (!gamePaused) {
+            gamePaused = true;
+            this.add.text(this.scale.width / 2, this.scale.height / 2, 'Paused', {
+                fontSize: '48px',
+                fill: '#fff',
+                backgroundColor: '#000000',
+                padding: { x: 20, y: 10 }
+            }).setOrigin(0.5);
+            this.physics.pause();
+            this.bgMusic.pause();  // Pause BGM when game pauses
+        }
+    });
+
+    // At the end of create function
+    this.physics.pause();  // Start the game paused
 }
 
 function update() {
+    if (gamePaused) return;  // Add this line at the start of update
+
     if (this.time.now > lastTimeBonus + 10000) {
         score += 100;
         scoreText.setText('Score: ' + score);
