@@ -5,10 +5,22 @@ const GAME_CONSTANTS = {
         DECREASE: 10,
         MIN_LIMIT: 200,
         UPDATE_INTERVAL: 10000
+    },
+    PLAYER: {
+        SPEED: 0.004
+    },
+    SOUND: {
+        BGM_VOLUME: 1,
+        FIRE_VOLUME: 0.4,
+        ASTEROID_EXPLOSION_VOLUME: 0.9,
+        SHIP_EXPLOSION_VOLUME: 0.6
     }
 };
 
-// Add with other global variables
+// Add after other global variables
+let targetX;
+let targetY;
+
 let currentFireRate = GAME_CONSTANTS.FIRE_RATE.INITIAL;
 let lastFireRateUpdate = 0;
 let lastAutoShot = 0;
@@ -54,6 +66,7 @@ function preload() {
     this.load.audio('fireSound', 'assets/sounds/fire.mp3');
     this.load.audio('asteroidExplosion', 'assets/sounds/asteroid-explosion.mp3');
     this.load.audio('shipExplosion', 'assets/sounds/ship-explosion.mp3');
+    this.load.audio('bgMusic', 'assets/bgm/1.mp3');
     this.load.spritesheet('explosion', 'assets/images/explosion.png', {
         frameWidth: 64,
         frameHeight: 64
@@ -102,12 +115,21 @@ function create() {
         right: Phaser.Input.Keyboard.KeyCodes.D
     });
 
-    // Add sound
+    // Add sound with volume settings
     this.fireSound = this.sound.add('fireSound');
-    this.asteroidExplosionSound = this.sound.add('asteroidExplosion');
-    this.shipExplosionSound = this.sound.add('shipExplosion');
+    this.fireSound.setVolume(GAME_CONSTANTS.SOUND.FIRE_VOLUME);
 
-    // Add collision between bullets and enemies
+    this.asteroidExplosionSound = this.sound.add('asteroidExplosion');
+    this.asteroidExplosionSound.setVolume(GAME_CONSTANTS.SOUND.ASTEROID_EXPLOSION_VOLUME);
+
+    this.shipExplosionSound = this.sound.add('shipExplosion');
+    this.shipExplosionSound.setVolume(GAME_CONSTANTS.SOUND.SHIP_EXPLOSION_VOLUME);
+
+    // Add background music with volume
+    this.bgMusic = this.sound.add('bgMusic', { loop: true });
+    this.bgMusic.setVolume(GAME_CONSTANTS.SOUND.BGM_VOLUME);
+    this.bgMusic.play();
+
     // Create explosion animation
     this.anims.create({
         key: 'explode',
@@ -136,17 +158,24 @@ function create() {
         scoreText.setText('Score: ' + score);
     });
 
+    // Add background music
+    this.bgMusic = this.sound.add('bgMusic', { loop: true });
+    this.bgMusic.play();
+
     // Update player collision to show game over
     this.physics.add.collider(player, enemies, (player, enemy) => {
+        // Stop background music
+        this.bgMusic.stop();
+
         // Destroy all existing enemies
         enemies.clear(true, true);
         // Destroy all existing bullets
         bullets.clear(true, true);
         player.destroy();
         enemy.destroy();
+        this.bgMusic.stop();
         this.shipExplosionSound.play();
 
-        // Add game over text at center screen
         const gameOverText = this.add.text(this.scale.width / 2, this.scale.height / 2, 'Game Over', {
             fontSize: '64px',
             fill: '#ff0000',
@@ -155,11 +184,9 @@ function create() {
             padding: { x: 20, y: 10 }
         }).setOrigin(0.5);
 
-        // Disable all game updates
         this.physics.pause();
 
-        // Wait 2 seconds before restarting
-        this.time.delayedCall(2000, () => {
+        this.time.delayedCall(8000, () => {
             this.physics.resume();
             score = 0;
             this.scene.restart();
@@ -173,6 +200,15 @@ function create() {
             player.y = pointer.y;
         }
     });
+    // Replace pointer movement with target tracking
+    this.input.on('pointermove', (pointer) => {
+        targetX = pointer.x;
+        targetY = pointer.y;
+    });
+
+    // Initialize target position
+    targetX = player.x;
+    targetY = player.y;
 }
 
 function update() {
@@ -281,13 +317,24 @@ function update() {
             'bullet'
         );
         bullet.setVelocityY(-400);
-
         this.fireSound.play();
-
         bullet.checkWorldBounds = true;
         bullet.outOfBoundsKill = true;
-
         lastAutoShot = this.time.now;
+    }
+
+    // Move player towards target position
+    if (player && player.body) {
+        const angle = Phaser.Math.Angle.Between(player.x, player.y, targetX, targetY);
+        const distance = Phaser.Math.Distance.Between(player.x, player.y, targetX, targetY);
+
+        if (distance > 5) {
+            const velocityX = Math.cos(angle) * GAME_CONSTANTS.PLAYER.SPEED;
+            const velocityY = Math.sin(angle) * GAME_CONSTANTS.PLAYER.SPEED;
+            player.body.setVelocity(velocityX, velocityY);
+        } else {
+            player.body.setVelocity(0, 0);
+        }
     }
 
     // Enemy spawn logic
