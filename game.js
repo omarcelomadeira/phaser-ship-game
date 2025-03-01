@@ -37,7 +37,8 @@ const config = {
         parent: 'game',
         width: '100%',
         height: '100%',
-        autoCenter: Phaser.Scale.CENTER_BOTH
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+        zoom: 1 / window.devicePixelRatio
     },
     physics: {
         default: 'arcade',
