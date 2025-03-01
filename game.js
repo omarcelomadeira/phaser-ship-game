@@ -1,3 +1,18 @@
+// Add at the top with other constants
+const GAME_CONSTANTS = {
+    FIRE_RATE: {
+        INITIAL: 800,
+        DECREASE: 10,
+        MIN_LIMIT: 200,
+        UPDATE_INTERVAL: 10000
+    }
+};
+
+// Add with other global variables
+let currentFireRate = GAME_CONSTANTS.FIRE_RATE.INITIAL;
+let lastFireRateUpdate = 0;
+let lastAutoShot = 0;
+
 const config = {
     type: Phaser.AUTO,
     scale: {
@@ -79,13 +94,12 @@ function create() {
     // Create enemies group
     enemies = this.physics.add.group();
 
-    // Setup WASD keys and spacebar
+    // Setup WASD keys only (remove spacebar)
     cursors = this.input.keyboard.addKeys({
         up: Phaser.Input.Keyboard.KeyCodes.W,
         down: Phaser.Input.Keyboard.KeyCodes.S,
         left: Phaser.Input.Keyboard.KeyCodes.A,
-        right: Phaser.Input.Keyboard.KeyCodes.D,
-        shoot: Phaser.Input.Keyboard.KeyCodes.SPACE
+        right: Phaser.Input.Keyboard.KeyCodes.D
     });
 
     // Add sound
@@ -122,17 +136,75 @@ function create() {
         scoreText.setText('Score: ' + score);
     });
 
-    // Update player collision to reset score
+    // Update player collision to show game over
     this.physics.add.collider(player, enemies, (player, enemy) => {
+        // Destroy all existing enemies
+        enemies.clear(true, true);
+        // Destroy all existing bullets
+        bullets.clear(true, true);
         player.destroy();
         enemy.destroy();
         this.shipExplosionSound.play();
-        score = 0;  // Reset score
-        this.scene.restart();
+
+        // Add game over text at center screen
+        const gameOverText = this.add.text(this.scale.width / 2, this.scale.height / 2, 'Game Over', {
+            fontSize: '64px',
+            fill: '#ff0000',
+            fontStyle: 'bold',
+            backgroundColor: '#000000',
+            padding: { x: 20, y: 10 }
+        }).setOrigin(0.5);
+
+        // Disable all game updates
+        this.physics.pause();
+
+        // Wait 2 seconds before restarting
+        this.time.delayedCall(2000, () => {
+            this.physics.resume();
+            score = 0;
+            this.scene.restart();
+        });
+    });
+
+    // Remove keyboard controls and add pointer movement
+    this.input.on('pointermove', (pointer) => {
+        if (player && player.body) {
+            player.x = pointer.x;
+            player.y = pointer.y;
+        }
     });
 }
 
 function update() {
+
+    // Update fire rate every interval
+    if (this.time.now > lastFireRateUpdate + GAME_CONSTANTS.FIRE_RATE.UPDATE_INTERVAL) {
+        currentFireRate = Math.max(
+            currentFireRate - GAME_CONSTANTS.FIRE_RATE.DECREASE,
+            GAME_CONSTANTS.FIRE_RATE.MIN_LIMIT
+        );
+        lastFireRateUpdate = this.time.now;
+    }
+
+    // Auto shooting logic
+    if (player && player.body && this.time.now > lastAutoShot + currentFireRate) {
+        const bullet = bullets.create(
+            player.x,
+            player.y - player.height / 2,
+            'bullet'
+        );
+        bullet.setVelocityY(-400);
+
+        // Play sound effect
+        this.fireSound.play();
+
+        // Destroy bullet when it goes off screen
+        bullet.checkWorldBounds = true;
+        bullet.outOfBoundsKill = true;
+
+        lastAutoShot = this.time.now;
+    }
+
     const speed = 300;
 
     // Reset velocity
@@ -160,24 +232,7 @@ function update() {
         );
     }
 
-    // Shooting logic
-    if (cursors.shoot.isDown && this.time.now > lastShot + 250) {
-        const bullet = bullets.create(
-            player.x,
-            player.y - player.height / 2,
-            'bullet'
-        );
-        bullet.setVelocityY(-400);
 
-        // Play sound effect
-        this.fireSound.play();
-
-        // Destroy bullet when it goes off screen
-        bullet.checkWorldBounds = true;
-        bullet.outOfBoundsKill = true;
-
-        lastShot = this.time.now;
-    }
 
     // Enemy spawn logic
     if (this.time.now > lastEnemySpawn + 1000) {
@@ -200,8 +255,8 @@ function update() {
     lastTimeBonus = this.time.now;
 }
 
+// Remove the duplicate update function and keep only one with all the logic
 function update() {
-    // Add at the beginning of update function
     // Check for time bonus (every 10 seconds)
     if (this.time.now > lastTimeBonus + 10000) {
         score += 100;
@@ -209,35 +264,17 @@ function update() {
         lastTimeBonus = this.time.now;
     }
 
-    const speed = 300;
-
-    // Reset velocity
-    player.body.setVelocity(0);
-
-    // Horizontal movement
-    if (cursors.left.isDown) {
-        player.body.setVelocityX(-speed);
-    } else if (cursors.right.isDown) {
-        player.body.setVelocityX(speed);
-    }
-
-    // Vertical movement
-    if (cursors.up.isDown) {
-        player.body.setVelocityY(-speed);
-    } else if (cursors.down.isDown) {
-        player.body.setVelocityY(speed);
-    }
-
-    // Normalize diagonal movement
-    if (player.body.velocity.x !== 0 && player.body.velocity.y !== 0) {
-        player.body.setVelocity(
-            player.body.velocity.x * 0.707,
-            player.body.velocity.y * 0.707
+    // Update fire rate every interval
+    if (this.time.now > lastFireRateUpdate + GAME_CONSTANTS.FIRE_RATE.UPDATE_INTERVAL) {
+        currentFireRate = Math.max(
+            currentFireRate - GAME_CONSTANTS.FIRE_RATE.DECREASE,
+            GAME_CONSTANTS.FIRE_RATE.MIN_LIMIT
         );
+        lastFireRateUpdate = this.time.now;
     }
 
-    // Shooting logic
-    if (cursors.shoot.isDown && this.time.now > lastShot + 250) {
+    // Auto shooting logic
+    if (player && player.body && this.time.now > lastAutoShot + currentFireRate) {
         const bullet = bullets.create(
             player.x,
             player.y - player.height / 2,
@@ -245,14 +282,12 @@ function update() {
         );
         bullet.setVelocityY(-400);
 
-        // Play sound effect
         this.fireSound.play();
 
-        // Destroy bullet when it goes off screen
         bullet.checkWorldBounds = true;
         bullet.outOfBoundsKill = true;
 
-        lastShot = this.time.now;
+        lastAutoShot = this.time.now;
     }
 
     // Enemy spawn logic
@@ -261,11 +296,9 @@ function update() {
         const x = Phaser.Math.Between(margin, this.scale.width - margin);
         const enemy = enemies.create(x, -20, 'asteroid');
 
-        // Random speed between 150 and 250
         const speed = Phaser.Math.Between(150, 250);
         enemy.setVelocityY(speed);
 
-        // Destroy enemy when it goes off screen
         enemy.checkWorldBounds = true;
         enemy.outOfBoundsKill = true;
 
